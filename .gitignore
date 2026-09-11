@@ -1,0 +1,11 @@
+.venv/
+.venv_web/
+__pycache__/
+*.pyc
+*.pyo
+Web/__pycache__/
+RunTool/__pycache__/
+Function/__pycache__/
+RunTool/Cache/
+.vscode/
+*.log

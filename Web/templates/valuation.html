@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Callable Hybrid Bond / Valuation Story</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='valuation.css') }}">
+</head>
+<body>
+  <main class="deck" aria-label="Callable Hybrid Bond 평가 설명 프레젠테이션">
+    <header class="topbar"><span>QUANTLIB NOTE / 02</span><span>CALLABLE HYBRID BOND</span></header>
+    <div class="slides">
+      <section class="slide active">
+        <div class="eyebrow">VALUATION STORY</div>
+        <h1>한 개의 가격은<br><em>여섯 단계</em>로 만들어집니다</h1>
+        <p class="lead">시장 데이터에서 출발해, 금리 경로를 만들고, 채권의 현금흐름과 발행자의 콜 선택을 경로마다 평가합니다.</p>
+        <div class="hero-flow"><span>MARKET</span><i>→</i><span>MODEL</span><i>→</i><span>PATHS</span><i>→</i><strong>PRICE</strong></div>
+        <div class="note"><b>Callable Hybrid Bond</b><span>가격, 옵션가치, 행사통계</span></div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">01 / INPUTS</div><h2>먼저 시장과 계약을<br><em>같은 평가일</em>에 놓습니다</h2>
+        <div class="input-layout"><div class="date-axis"><span>valuation date</span><b>2025.01.02</b><i></i><span>issue</span><b>2024.11.29</b><i></i><span>first call / reset</span><b>2027.08.29</b><i></i><span>maturity</span><b>2034.11.29</b></div><div class="input-cards"><article><small>MARKET</small><b>Yield Curve</b><p>예금·스왑 입력으로 할인곡선을 구성</p></article><article><small>MARKET</small><b>Swaption Vol</b><p>G2++ 파라미터 캘리브레이션의 기준</p></article><article><small>CONTRACT</small><b>Bond Terms</b><p>쿠폰, 리셋, 콜 일정과 상환액</p></article></div></div>
+        <div class="codebar"><code>Bootstrapping.py</code><code>SwaptionVolCalib.py</code><code>Callablehybridbond.py</code></div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">02 / MARKET MODEL</div><h2>커브는 할인곡선,<br>변동성은 <em>움직임의 크기</em>입니다</h2>
+        <div class="chart-grid"><div class="chart-panel"><small>ZERO CURVE</small><div class="plot curve-plot"><span class="line coral"></span><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="dot d4"></span><div class="xlabels"><b>0Y</b><b>5Y</b><b>10Y</b><b>30Y</b></div></div><p>현재 시점의 금리 수준과 할인</p></div><div class="chart-panel"><small>SWAPTION VOLATILITY</small><div class="heatmap"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><p>만기 × 스왑기간별 변동성 표면</p></div></div>
+        <div class="caption-row"><span>curve → discount factors</span><span>volatility matrix → G2++ calibration</span></div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">03 / G2++ CALIBRATION</div><h2>관측된 옵션 가격에<br><em>모형 파라미터</em>를 맞춥니다</h2>
+        <div class="calib-layout"><div class="parameter-list"><div><b>a</b><span>mean reversion / x</span><strong>0.0000</strong></div><div><b>sigma</b><span>volatility / x</span><strong>0.0026</strong></div><div><b>b</b><span>mean reversion / y</span><strong>0.1059</strong></div><div><b>eta</b><span>volatility / y</span><strong>0.0027</strong></div><div><b>rho</b><span>factor correlation</span><strong>−0.0629</strong></div></div><div class="fit-chart"><small>MARKET VS MODEL PRICE</small><div class="fit-row"><span>market</span><i></i><b></b></div><div class="fit-row"><span>model</span><i></i><b></b></div><div class="fit-row"><span>error</span><i></i><b></b></div><div class="fit-axis"><span>1Y</span><span>5Y</span><span>10Y</span><span>20Y</span></div><p>가격 오차를 최소화하는 파라미터 조합</p></div></div>
+        <div class="codebar"><code>calibrate_g2()</code><span>→</span><code>G2Parameters(a, sigma, b, eta, rho)</code></div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">04 / PATHWISE CASH FLOWS</div><h2>같은 채권도 경로마다<br><em>쿠폰의 현재가치</em>가 달라집니다</h2>
+        <div class="path-layout"><div class="path-chart"><div class="gridline g1"></div><div class="gridline g2"></div><div class="gridline g3"></div><span class="path p1"></span><span class="path p2"></span><span class="path p3"></span><span class="path p4"></span><div class="path-label">short rate paths</div><div class="axis-labels"><span>today</span><span>call date</span><span>maturity</span></div></div><div class="cashflow-card"><div class="cf-row"><span>coupon</span><b>rate × accrual × notional</b></div><div class="cf-row"><span>discount</span><b>exp(−∫ r(s)ds)</b></div><div class="cf-row total"><span>path PV</span><b>Σ cash flow × DF</b></div></div></div>
+        <p class="bottom-copy">`Callablehybridbond.py`는 각 경로의 단기금리에서 누적 할인계수를 만들고, 미래 쿠폰과 상환액을 경로별로 현재가치화합니다.</p>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">05 / CALL DECISION</div><h2>발행자는 매 콜일에<br><em>지금 갚을지</em> 비교합니다</h2>
+        <div class="decision"><div class="decision-box continuation"><small>CONTINUATION VALUE</small><strong>계속 유지했을 때의 가치</strong><span>coupon + future redemption</span></div><div class="versus">VS</div><div class="decision-box redemption"><small>REDEMPTION</small><strong>지금 콜했을 때의 상환액</strong><span>call price × notional</span></div></div>
+        <div class="decision-rule"><span>if</span><b>redemption &lt; continuation estimate</b><span>→ issuer exercises call</span></div>
+        <div class="lsm-note"><b>LSM regression</b><span>x, y 상태변수로 continuation value를 회귀해 경로별 의사결정 기준을 추정합니다.</span></div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">06 / AGGREGATION</div><h2>경로의 결과를 평균내고<br><em>불확실성</em>까지 표시합니다</h2>
+        <div class="result-layout"><div class="price-card"><small>CALLABLE BOND PRICE</small><strong>9,727,955</strong><span>mean of path PVs</span><div class="interval"><i></i><b></b><i></i><span>95% confidence interval</span></div></div><div class="result-bars"><div><span>straight bond</span><i style="width:92%"></i><b>9,931,507</b></div><div><span>callable bond</span><i style="width:88%"></i><b>9,727,955</b></div><div><span>option value</span><i style="width:23%"></i><b>203,552</b></div></div></div>
+        <div class="stat-row"><span><b>Standard Error</b> 2,916</span><span><b>Call exercise</b> by date</span><span><b>Output</b> CSV + web JSON</span></div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">07 / THE HAND-OFF</div><h2>결국 다음 모듈이<br><em>같은 simulation</em>을 읽습니다</h2>
+        <div class="handoff"><div class="module"><small>01</small><b>G2Simulation</b><span>rates & discount factors</span></div><i>→</i><div class="module highlighted"><small>02</small><b>CallableHybridBond</b><span>cash flows & exercise</span></div><i>→</i><div class="module"><small>03</small><b>Web / Excel</b><span>price & diagnostics</span></div></div>
+        <div class="takeaway"><b>핵심 한 문장</b><p>시장에 맞춘 금리 경로 위에서 현금흐름과 콜 의사결정을 동시에 평가하고, 그 평균이 callable bond price가 됩니다.</p></div>
+        <div class="end-links"><a href="/g2simulation">G2++ simulation 설명 ↗</a><a href="/callableswap">CallableSwap.py 설명 ↗</a><a href="/">평가 입력 화면 ↗</a></div>
+      </section>
+    </div>
+    <nav class="controls"><button id="prev" aria-label="이전 슬라이드">←</button><div class="progress"><span id="fill"></span></div><span id="counter">01 / 08</span><button id="next" aria-label="다음 슬라이드">→</button><span class="hint">← → / SPACE</span></nav>
+  </main>
+  <script>
+    const slides = [...document.querySelectorAll('.slide')]; let current = 0;
+    const fill = document.querySelector('#fill'); const counter = document.querySelector('#counter');
+    function show(index) { current = (index + slides.length) % slides.length; slides.forEach((s, i) => s.classList.toggle('active', i === current)); fill.style.width = `${(current + 1) / slides.length * 100}%`; counter.textContent = `${String(current + 1).padStart(2, '0')} / ${String(slides.length).padStart(2, '0')}`; }
+    document.querySelector('#prev').onclick = () => show(current - 1); document.querySelector('#next').onclick = () => show(current + 1);
+    document.onkeydown = event => { if (['ArrowRight', ' ', 'PageDown'].includes(event.key)) show(current + 1); if (['ArrowLeft', 'PageUp'].includes(event.key)) show(current - 1); }; show(0);
+  </script>
+</body>
+</html>

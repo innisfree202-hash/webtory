@@ -1,0 +1,14 @@
+﻿Data,Maturity,yield,product,Source
+20250102,1M,0.012000000000000002,Deposit,Yield_depositSwap.xlsx
+20250102,3M,0.012499999999999999,Deposit,Yield_depositSwap.xlsx
+20250102,6M,0.013,Deposit,Yield_depositSwap.xlsx
+20250102,1Y,0.014,Swap,Yield_depositSwap.xlsx
+20250102,2Y,0.015000000000000001,Swap,Yield_depositSwap.xlsx
+20250102,3Y,0.016,Swap,Yield_depositSwap.xlsx
+20250102,5Y,0.017,Swap,Yield_depositSwap.xlsx
+20250102,7Y,0.0175,Swap,Yield_depositSwap.xlsx
+20250102,10Y,0.018000000000000002,Swap,Yield_depositSwap.xlsx
+20250102,15Y,0.018500000000000003,Swap,Yield_depositSwap.xlsx
+20250102,20Y,0.018800000000000004,Swap,Yield_depositSwap.xlsx
+20250102,25Y,0.019000000000000003,Swap,Yield_depositSwap.xlsx
+20250102,30Y,0.019200000000000002,Swap,Yield_depositSwap.xlsx

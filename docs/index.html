@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CallableSwap.py / Code Walkthrough</title>
+  <link rel="stylesheet" href="callableswap-slides.css">
+</head>
+<body>
+  <main class="deck" aria-label="CallableSwap.py 금융공학 코드 설명 프레젠테이션">
+    <div class="topline"><span>QUANTLIB NOTE / 03</span><span>FUNCTION / CallableSwap.py</span></div>
+    <div class="slides">
+      <section class="slide active">
+        <div class="eyebrow">BERMUDAN CALLABLE SWAP <span class="section-number">01</span></div>
+        <h1>스왑의 미래를<br><em>오늘의 가격</em>으로 바꾸는 코드</h1>
+        <p class="lead">이 파일은 G2++ 금리 시뮬레이션 위에서 고정금리 레그와 변동금리 레그의 가치를 계산하고, 정해진 콜일마다 조기행사 여부를 판단합니다.</p>
+        <div class="hero-equation"><span>price</span> = E<sub>Q</sub>[ <span>pathwise swap value</span> × <span>exercise rule</span> × <span>discount</span> ]</div>
+        <div class="footer-note"><span>핵심 질문: 계속 보유하는 가치가 큰가, 지금 권리를 행사하는 가치가 큰가?</span><span>slide deck · ggplot2 visual language</span></div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">00 / MAP</div><h2>코드의 전체 흐름은<br><strong>가격 결정 파이프라인</strong>입니다</h2>
+        <div class="flow">
+          <div class="flow-step"><small>01</small><b>Contract</b><span>일정, 방향, 금리, 스프레드, 명목금액</span></div><div class="flow-arrow">→</div>
+          <div class="flow-step"><small>02</small><b>Simulation</b><span>x(t), y(t), phi(t)로 short rate 경로 구성</span></div><div class="flow-arrow">→</div>
+          <div class="flow-step"><small>03</small><b>Cash flows</b><span>고정·변동 레그를 call date에서 현재가치화</span></div><div class="flow-arrow">→</div>
+          <div class="flow-step"><small>04</small><b>Exercise</b><span>LSM으로 continuation value를 추정</span></div><div class="flow-arrow">→</div>
+          <div class="flow-step"><small>05</small><b>Price</b><span>경로별 payoff를 오늘로 할인해 평균</span></div>
+        </div>
+        <div class="code-strip"><code>price_callable_swap(...)</code><span>가 호출하는 핵심 내부 함수</span><b>_build_schedule · _prepare_swap_cashflows · _lsm_regression</b></div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">01 / CONTRACT & VALIDATION</div><h2>먼저 날짜와 계약 방향을<br><em>계산 가능한 상태</em>로 고정합니다</h2>
+        <div class="grid-two">
+          <article class="panel"><div class="panel-label">INPUT CONTRACT</div><h3>가격 함수의 공개 입력</h3><p><span class="mono">valuation_date</span>부터 <span class="mono">maturity</span>까지의 기간, 콜일 배열, receiver/payer 방향, call right, fixed rate와 floating spread를 받습니다.</p><div class="tag-row"><span class="tag">receiver_payer</span><span class="tag">call_right</span><span class="tag">notional</span><span class="tag">fixed_leg_tenor</span><span class="tag">floating_leg_tenor</span></div></article>
+          <article class="panel"><div class="panel-label">GUARDRAILS</div><h3>조용한 오류를 먼저 차단</h3><p>시뮬레이션의 x/y shape, times 길이, 양수 dt, valuation date 일치 여부, call date의 위치를 검증합니다. 이 검증이 실패하면 숫자를 만들기 전에 즉시 예외를 냅니다.</p><div class="annotation">금융 계산에서 날짜가 한 칸 밀리는 오류는 문법 오류보다 위험합니다. 따라서 date → index 변환 전에 경계조건을 명시합니다.</div></article>
+        </div>
+        <div class="code-strip"><code>if valuation_date != simulation_today: raise ValueError(...)</code><b>모형의 시간축과 계약의 평가 기준일을 일치시킴</b></div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">02 / SCHEDULE</div><h2>실제 날짜를<br><strong>시뮬레이션 격자</strong>에 투영합니다</h2>
+        <p class="small-lead">QuantLib의 <span class="mono">Schedule</span>은 TARGET calendar와 Modified Following 규칙으로 현금흐름 날짜를 만들고, 이후 각 날짜는 균일 시간 격자의 정수 인덱스로 변환됩니다.</p>
+        <div class="schedule"><div class="schedule-line"></div><div class="date-points"><div class="date-point"><b>t₀</b><i></i><span>valuation</span></div><div class="date-point"><b>t₁</b><i></i><span>coupon / fixing</span></div><div class="date-point call"><b>t₂</b><i></i><span>call date</span></div><div class="date-point"><b>t₃</b><i></i><span>payment</span></div><div class="date-point call"><b>t₄</b><i></i><span>call date</span></div><div class="date-point"><b>t₅</b><i></i><span>maturity</span></div></div><div class="schedule-legend"><span><i></i> cash flow / simulation point</span><span><i class="coral"></i> exercise opportunity</span></div></div>
+        <div class="formula-box"><span class="coral">t</span> = day_counter.yearFraction(valuation_date, date)<br><span class="teal">index</span> = int(round(t / dt))</div>
+        <p class="formula-caption">코드의 <span class="mono">_date_to_simulation_index()</span>는 날짜를 직접 비교하지 않고, 시뮬레이션이 이해하는 좌표로 바꿉니다.</p>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">03 / G2++ SHORT RATE</div><h2>경로의 금리는<br><em>세 조각의 합</em>으로 읽습니다</h2>
+        <div class="grid-two">
+          <div><div class="formula-box"><span class="coral">r(t)</span> = <span class="yellow">phi(t)</span> + <span class="teal">x(t)</span> + <span class="blue">y(t)</span><br><br>dx = −a·x·dt + sigma·dW₁<br>dy = −b·y·dt + eta·dW₂<br>corr(dW₁, dW₂) = rho</div><p class="formula-caption">이 파일은 x와 y를 새로 시뮬레이션하지 않고, simulation dictionary에서 읽습니다.</p></div>
+          <div><div class="plot"><div class="plot-line one"></div><div class="plot-line two"></div><div class="plot-line three"></div><span class="plot-label top">short rate</span><span class="plot-label bottom">time</span><div class="plot-axis"><span>0</span><span>call 1</span><span>call 2</span><span>maturity</span></div></div><p class="formula-caption"><span class="mono">phi</span>는 시장 커브를 붙잡고, x/y는 미래 금리의 확률적 움직임을 제공합니다.</p></div>
+        </div>
+        <div class="code-strip"><code>short_rates = x_paths + y_paths + phi[np.newaxis, :]</code><b>(n_paths, n_times) broadcasting으로 전 경로를 한 번에 생성</b></div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">04 / CUMULATIVE DISCOUNTING</div><h2>할인은 매번 적분하지 않고<br><strong>누적값의 비율</strong>로 재사용합니다</h2>
+        <div class="matrix-flow"><div class="matrix-card"><span class="shape">INPUT</span><b>r[path, time]</b><p>각 경로의 단기금리. trapezoidal rule로 시간구간 적분</p></div><div class="matrix-arrow">→</div><div class="matrix-card"><span class="shape">CACHE</span><b>I(0,t)</b><p>경로별 누적 적분을 한 번만 계산</p></div><div class="matrix-arrow">→</div><div class="matrix-card"><span class="shape">QUERY</span><b>DF(i,j)</b><p>exp(−(I(0,j) − I(0,i))) = DF(0,j) / DF(0,i)</p></div></div>
+        <div class="formula-box"><span class="coral">increments</span> = 0.5 × (r[:, :-1] + r[:, 1:]) × dt<br><span class="teal">cumulative_integral[:, 1:]</span> = cumsum(increments, axis=1)<br><span class="yellow">cumulative_df</span> = exp(−cumulative_integral)</div>
+        <p class="formula-caption">이 최적화가 뒤의 fixed leg, floating leg, continuation discount, valuation-date discount를 모두 지탱합니다.</p>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">05 / SWAP VALUE</div><h2>콜일의 스왑 가치는<br><em>두 레그의 현재가치 차이</em>입니다</h2>
+        <table class="leg-table"><thead><tr><th>LEG</th><th>CODE IDEA</th><th>FINANCIAL MEANING</th></tr></thead><tbody><tr><td>FIXED</td><td>fixed_rate × accrual × notional × P(call, pay)</td><td>미래 고정 쿠폰을 콜일 기준으로 할인</td></tr><tr><td>FLOATING</td><td>(forward + spread) × accrual × notional × P(call, pay)</td><td>P(call, start) / P(call, pay)로 forward 생성</td></tr><tr><td>SWAP</td><td>fixed_pv − floating_pv</td><td>Receiver의 관점. Payer는 부호를 반전</td></tr></tbody></table>
+        <div class="formula-box"><span class="coral">L_fixed</span> = Σ K · alphaᵢ · N · P(t, Tᵢ)<br><span class="teal">L_float</span> = Σ [(P(t, Sᵢ) / P(t, Tᵢ) − 1) / tauᵢ + spread] · tauᵢ · N · P(t, Tᵢ)<br><span class="yellow">V_swap(t)</span> = L_fixed − L_float &nbsp; (RECEIVER)</div>
+        <div class="annotation">floating leg에서 forward와 discount가 같은 경로의 cumulative DF에서 나오므로, 모델의 금리 상태와 현금흐름 평가가 일관됩니다.</div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">06 / VECTORISATION</div><h2>Python loop는 콜일에만 남기고<br><strong>경로 계산은 NumPy로 묶습니다</strong></h2>
+        <div class="grid-two"><article class="panel"><div class="panel-label">BEFORE</div><h3>비싼 중첩 반복</h3><p>path → call date → payment cash flow 순서로 Python에서 반복하면 경로 수와 현금흐름 수가 곱해집니다.</p><div class="formula-box">for path in paths:<br>&nbsp;&nbsp;for call in calls:<br>&nbsp;&nbsp;&nbsp;&nbsp;for payment in cashflows:</div></article><article class="panel"><div class="panel-label">CURRENT</div><h3>행렬 브로드캐스팅</h3><p>한 콜일에서 모든 path의 discount matrix를 만들고, payment 축으로 합산합니다. 명시적 path loop가 사라집니다.</p><div class="formula-box">cumulative_df[:, payment_indices]<br>/ cumulative_df[:, call_index]<br>→ sum(axis=1)</div></article></div>
+        <div class="code-strip"><code>discount_factors.shape = (n_paths, n_payments)</code><b>계산량은 남지만 Python interpreter overhead를 줄임</b></div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">07 / EXERCISE PAYOFF</div><h2>콜 권리는<br><em>스왑 가치의 부호</em>로 결정됩니다</h2>
+        <p class="small-lead">이 구현에서 call right는 receiver 또는 payer입니다. 같은 swap position이라도 누가 권리를 행사하는지에 따라 유리한 방향이 달라집니다.</p>
+        <div class="decision-grid"><div class="decision-card continuation"><small>UNDERLYING SWAP</small><strong>V_swap</strong><span>Receiver: fixed − floating<br>Payer: floating − fixed</span></div><div class="versus">→</div><div class="decision-card exercise"><small>EXERCISE VALUE</small><strong>max(benefit, 0)</strong><span>자기 포지션을 종료하거나<br>상대방에게 종료를 요구하는 권리</span></div></div>
+        <div class="formula-box"><span class="coral">call_right = RECEIVER</span><br>receiver_payer == RECEIVER → max(−V_swap, 0)<br>receiver_payer == PAYER &nbsp;&nbsp;→ max(V_swap, 0)<br><br><span class="teal">call_right = PAYER</span>도 같은 논리로 자신의 불리한 포지션을 반대 방향에서 읽습니다.</div>
+        <div class="annotation">이 단계의 반환값은 아직 오늘의 가격이 아닙니다. 각 콜일에 “그때 행사하면 얻는 가치”를 저장한 exercise_values 행렬입니다.</div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">08 / LSM REGRESSION</div><h2>미래의 선택 가치를<br><strong>현재 상태에서 추정</strong>합니다</h2>
+        <div class="regression"><div><p class="small-lead">Longstaff-Schwartz는 실제로 미래 경로를 모두 아는 것이 아니라, 현재의 상태변수 x, y가 주어졌을 때 continuation value의 조건부 기대값을 회귀로 근사합니다.</p><div class="basis"><span>1</span><span>x</span><span>y</span><span>x²</span><span>x·y</span><span>y²</span></div><p class="formula-caption">A · beta ≈ continuation_value<br>continuation_estimate = A · beta</p></div><div><div class="scatter"><i class="point p1"></i><i class="point p2"></i><i class="point p3"></i><i class="point p4"></i><i class="point p5"></i><i class="point p6"></i></div><p class="formula-caption">점: 경로별 미래가치 · 선: 상태변수 기반 조건부 추정치</p></div></div>
+        <div class="formula-box"><span class="coral">A</span> = [1, x, y, x², x·y, y²]<br><span class="teal">beta</span> = np.linalg.lstsq(A, continuation_value)<br><span class="yellow">estimate</span> = A @ beta</div>
+        <div class="annotation">경로 수가 basis 차원보다 작으면 평균 continuation value를 사용합니다. 이는 회귀가 불안정해지는 작은 샘플의 fallback입니다.</div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">09 / BACKWARD INDUCTION</div><h2>가장 먼 콜일부터<br><em>시간을 거꾸로 읽습니다</em></h2>
+        <div class="backward"><div class="backward-row"><span>last call</span><div>straight swap value</div><div>exercise value</div><div>initialize option_values</div></div><div class="backward-row current"><span>call k</span><div>future option value</div><div>discount to call k</div><div>LSM estimate → exercise?</div></div><div class="backward-row"><span>call k−1</span><div>updated selected paths</div><div>discount again</div><div>repeat</div></div><div class="backward-row"><span>today</span><div>selected payoff</div><div>discount to t₀</div><div>Monte Carlo mean</div></div></div>
+        <div class="rule"><span>exercise_now =</span> exercise_value <b>&gt;</b> continuation_estimate<br><span>selected paths</span>만 option_values와 exercise_date_index를 갱신합니다.</div>
+        <p class="formula-caption">이미 행사한 경로는 <span class="mono">alive = ~exercised</span>에서 제외합니다. Bermudan exercise의 “한 번만 행사” 조건을 배열 상태로 관리하는 부분입니다.</p>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">10 / TODAY'S PRICE</div><h2>행사된 payoff를 오늘로 가져와<br><strong>경로 평균</strong>을 냅니다</h2>
+        <div class="metrics"><div class="metric"><small>PATHWISE VALUE</small><strong>PVₚ</strong><span>선택된 콜일의 option value × DF(call, today)</span></div><div class="metric"><small>MONTE CARLO PRICE</small><strong>mean(PVₚ)</strong><span>경로별 현재가치의 산술평균</span></div><div class="metric"><small>STATISTICAL ERROR</small><strong>σ / √N</strong><span>표본 표준편차로 standard error 계산</span></div></div>
+        <div class="formula-box"><span class="coral">present_values[exercised_mask]</span> = option_values × cumulative_df[path, selected_call] / cumulative_df[path, 0]<br><span class="teal">price</span> = np.mean(present_values)<br><span class="yellow">95% CI</span> = price ± 1.96 × standard_error</div>
+        <div class="annotation">결과의 핵심은 가격 하나만이 아닙니다. 경로별 PV, 행사일 인덱스, 콜일별 exercise statistics가 함께 반환되어 모델의 결정을 진단할 수 있습니다.</div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">11 / RESULT CONTRACT</div><h2>가격과 진단 데이터를<br><em>하나의 result dictionary</em>로 묶습니다</h2>
+        <div class="output-grid"><div class="tree"><b>result</b><div class="tree-row"><span>Price</span><span>Standard Error</span><span>95% CI</span></div><div class="tree-row"><span>Exercise Statistics</span><span>Path Values</span><span>Exercise Date Index</span></div><div class="tree-row"><span>Swap Values</span><span>Exercise Values</span><span>Short Rate Paths</span></div><div class="tree-row"><span>Phi Path</span><span>Fixed Rate</span><span>Notional</span></div></div><div class="panel"><div class="panel-label">WHY IT MATTERS</div><ul class="check-list"><li>가격이 어떤 콜 정책에서 나왔는지 추적</li><li>날짜별 행사 비율로 경제적 직관 확인</li><li>경로 배열을 재분석하거나 시각화</li><li>print 함수와 웹/Excel 계층이 재사용</li></ul></div></div>
+        <div class="code-strip"><code>print_callable_swap_result(result)</code><b>표시 계층과 계산 계층을 분리</b></div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">12 / ZERO COUPON VARIANT</div><h2>같은 엔진으로<br><strong>Zero Coupon Callable Bond</strong>도 가격화합니다</h2>
+        <div class="grid-two"><article class="panel"><div class="panel-label">BOND VALUE</div><h3>상환액과 콜 가격</h3><p>만기 상환액은 <span class="mono">notional × (1 + rate)^t</span>로 만들고, 콜일의 accrued value를 행사 가격으로 사용합니다.</p><div class="formula-box"><span class="coral">B(T)</span> = N(1 + z)<sup>τ(trade,T)</sup><br><span class="teal">CallPrice(t)</span> = N(1 + z)<sup>τ(trade,t)</sup></div></article><article class="panel"><div class="panel-label">OPTION LOGIC</div><h3>straight bond와 비교</h3><p>콜일의 straight bond value와 call price를 비교하고, continuation estimate보다 call price가 낮으면 발행자가 상환합니다.</p><div class="formula-box"><span class="yellow">Callable</span> = min(straight value, call price)<br><span class="teal">Option value</span> = straight price − callable price</div></article></div>
+        <div class="annotation">swap 버전은 exercise payoff를 별도로 계산하지만, zero-coupon 버전은 채권 가치와 call price의 최소값을 backward induction하는 구조입니다.</div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">13 / REVIEW NOTES</div><h2>이 코드에서 읽어야 할<br><em>금융공학적 가정</em></h2>
+        <div class="grid-two"><article class="panel"><div class="panel-label">MODEL ASSUMPTIONS</div><h3>무엇을 가정하는가</h3><p>G2++ short-rate paths가 위험중립 평가에 적합하고, deterministic shift phi가 초기 커브를 맞춘다고 봅니다. 현금흐름은 pathwise discount factor로 평가합니다.</p></article><article class="panel"><div class="panel-label">NUMERICAL ASSUMPTIONS</div><h3>무엇이 근사인가</h3><p>날짜를 uniform grid index로 반올림하고, 할인 적분은 trapezoidal rule을 사용합니다. LSM continuation value는 제한된 polynomial basis로 근사합니다.</p></article><article class="panel"><div class="panel-label">DIAGNOSTICS</div><h3>무엇을 점검할까</h3><p>call index가 중복되지 않는지, maturity가 simulation horizon 안에 있는지, 행사 비율이 비정상적으로 0% 또는 100%에 몰리지 않는지 봅니다.</p></article><article class="panel"><div class="panel-label">PERFORMANCE</div><h3>무엇을 빠르게 했는가</h3><p>cumulative DF 캐시, 사전 계산된 schedule index, NumPy broadcasting, 행렬 LSM으로 반복 계산을 줄였습니다.</p></article></div>
+        <div class="code-strip"><code>CallableSwap.py</code><b>가격 숫자보다 먼저, 시간축·부호·조건부 기대값의 의미를 검증</b></div>
+      </section>
+
+      <section class="slide">
+        <div class="eyebrow">14 / TAKEAWAY</div><h2>이 파일의 한 문장 요약은<br><strong>“선택이 있는 스왑을 경로별로 가격화한다”</strong>입니다</h2>
+        <p class="lead">시장에 맞춘 G2++ 경로에서 각 콜일의 swap value를 계산하고, LSM으로 미래 유지가치를 추정한 뒤, 행사된 payoff를 평가일로 할인해 Monte Carlo 평균을 얻습니다.</p>
+        <div class="hero-equation"><span>simulation</span> → <span>discounted cash flows</span> → <span>LSM exercise</span> → <span>price + diagnostics</span></div>
+        <div class="footer-note"><span>다음 읽을 파일: G2Simulation.py · Callablehybridbond.py · SwaptionVolCalib.py</span><span><a href="index.html">처음으로 ↗</a></span></div>
+      </section>
+    </div>
+    <nav class="controls"><button id="prev" aria-label="이전 슬라이드">←</button><div class="progress"><span id="fill"></span></div><span class="counter" id="counter">01 / 16</span><button id="next" aria-label="다음 슬라이드">→</button><span class="hint">← → / SPACE</span><a href="index.html">↗ 처음으로</a></nav>
+  </main>
+  <script>
+    const slides = [...document.querySelectorAll('.slide')];
+    const fill = document.querySelector('#fill');
+    const counter = document.querySelector('#counter');
+    let current = 0;
+    function show(index) { current = (index + slides.length) % slides.length; slides.forEach((slide, i) => slide.classList.toggle('active', i === current)); fill.style.width = `${((current + 1) / slides.length) * 100}%`; counter.textContent = `${String(current + 1).padStart(2, '0')} / ${String(slides.length).padStart(2, '0')}`; window.scrollTo({top: 0, behavior: 'smooth'}); }
+    document.querySelector('#prev').addEventListener('click', () => show(current - 1));
+    document.querySelector('#next').addEventListener('click', () => show(current + 1));
+    document.addEventListener('keydown', event => { if (['ArrowRight', ' ', 'PageDown'].includes(event.key)) { event.preventDefault(); show(current + 1); } if (['ArrowLeft', 'PageUp'].includes(event.key)) { event.preventDefault(); show(current - 1); } });
+    show(0);
+  </script>
+</body>
+</html>

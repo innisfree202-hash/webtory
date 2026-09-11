@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>G2++ Simulation / Code Walkthrough</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='g2slides.css') }}">
+</head>
+<body>
+  <main class="deck" aria-label="G2Simulation.py 설명 프레젠테이션">
+    <div class="topline"><span>QUANTLIB NOTE / 01</span><span>G2Simulation.py</span></div>
+    <div class="slides">
+      <section class="slide active" data-title="Overview">
+        <div class="kicker">EXACT G2++ MONTE CARLO</div>
+        <h1>금리를 한 줄의<br><b>경로</b>로 만든다</h1>
+        <p class="intro">G2Simulation.py는 시장 커브에 맞춘 2요인 금리모형을 만들고, 미래 단기금리와 할인계수를 경로별로 생성합니다.</p>
+        <div class="hero-equation">r(t) = <i>phi</i>(t) + x(t) + y(t)</div>
+        <div class="slide-note"><span>01</span> 코드의 목적 · 입력 · 계산 · 출력</div>
+      </section>
+
+      <section class="slide" data-title="Model">
+        <div class="kicker">01 / MODEL</div><h2>금리를 세 조각으로 나눕니다</h2>
+        <div class="equation-card"><div class="big-equation">r(t) = <span class="orange">phi(t)</span> + <span class="mint">x(t)</span> + <span class="blue">y(t)</span></div><p>관측 가능한 시장곡선과 두 개의 평균회귀 확률요인</p></div>
+        <div class="model-grid"><article><b class="orange">phi(t)</b><h3>결정론적 보정</h3><p>초기 선도금리와 convexity adjustment를 결합해 현재 시장 커브를 정확히 맞춥니다.</p><code>_g2_phi()</code></article><article><b class="mint">x(t)</b><h3>빠른 요인</h3><p><i>a</i>, <i>sigma</i>로 움직이는 단기 평균회귀 요인입니다.</p><code>dx = -a x dt + sigma dW1</code></article><article><b class="blue">y(t)</b><h3>느린 요인</h3><p><i>b</i>, <i>eta</i>로 움직이며 x와 <i>rho</i>만큼 상관됩니다.</p><code>dy = -b y dt + eta dW2</code></article></div>
+      </section>
+
+      <section class="slide" data-title="Phi">
+        <div class="kicker">02 / CURVE FITTING</div><h2><i>phi(t)</i>가 시장곡선을 붙잡습니다</h2>
+        <div class="split"><div><div class="formula">phi(t) = f(0,t)<br>+ <span class="orange">sigma²</span> / 2a² · (1 − e<sup>−at</sup>)²<br>+ <span class="blue">eta²</span> / 2b² · (1 − e<sup>−bt</sup>)²<br>+ <span class="mint">rho · sigma · eta</span> / ab · ...</div><p class="caption">확률요인의 분산과 상관에서 생기는 보정항을 더합니다.</p></div><div class="curve-visual"><div class="curve-line market"></div><div class="curve-line adjusted"></div><div class="axis"><span>오늘</span><span>1Y</span><span>5Y</span><span>30Y</span></div><div class="legend"><span><i class="dot orange-dot"></i> forward rate</span><span><i class="dot blue-dot"></i> phi(t)</span></div></div></div>
+        <div class="code-ref"><span>FUNCTION</span><code>_build_forward_curve() → _g2_phi()</code><b>forward_rates와 times가 먼저 준비됩니다.</b></div>
+      </section>
+
+      <section class="slide" data-title="Covariance">
+        <div class="kicker">03 / EXACT DISCRETIZATION</div><h2>끝점만이 아니라, <b>구간 전체</b>를 함께 뽑습니다</h2>
+        <p class="intro narrow">한 달 뒤의 x, y뿐 아니라 그 한 달 동안 누적된 Ix, Iy까지 하나의 Gaussian 벡터로 생성합니다.</p>
+        <div class="cov-layout"><div class="vector"><span>X</span><span>Y</span><span>IX</span><span>IY</span></div><div class="matrix"><div>var(x)</div><div>cov(x,y)</div><div>cov(x,Ix)</div><div>cov(x,Iy)</div><div>cov(y,x)</div><div>var(y)</div><div>cov(y,Ix)</div><div>cov(y,Iy)</div><div>cov(Ix,x)</div><div>cov(Ix,y)</div><div>var(Ix)</div><div>cov(Ix,Iy)</div><div>cov(Iy,x)</div><div>cov(Iy,y)</div><div>cov(Iy,Ix)</div><div>var(Iy)</div></div></div>
+        <div class="code-ref"><span>FUNCTION</span><code>_integrated_ou_covariance(dt, a, sigma, b, eta, rho)</code><b>4 × 4 covariance → Cholesky factor</b></div>
+      </section>
+
+      <section class="slide" data-title="Simulation">
+        <div class="kicker">04 / SIMULATION LOOP</div><h2>한 번 만든 계수로 <b>10,000개 경로</b>를 전개합니다</h2>
+        <div class="timeline"><div class="step"><span>t₀</span><b>초기 상태</b><small>x = 0, y = 0</small></div><i>→</i><div class="step hot"><span>dt = 1M</span><b>Gaussian shock</b><small>Cholesky · Z</small></div><i>→</i><div class="step"><span>t₁</span><b>OU update</b><small>x₁, y₁, Ix, Iy</small></div><i>→</i><div class="step"><span>...</span><b>t₃₆₀</b><small>30년 시계열</small></div></div>
+        <div class="formula strip">r<sub>t</sub> = phi<sub>t</sub> + x<sub>t</sub> + y<sub>t</sub><span>→</span> I<sub>r</sub> = ∫ r(s)ds<span>→</span> DF = e<sup>−I<sub>r</sub></sup></div>
+        <div class="code-ref"><span>FUNCTION</span><code>simulate_g2_short_rate(curve, model, simulation_years, n_paths, ...)</code><b>uniform time grid · reproducible seed</b></div>
+      </section>
+
+      <section class="slide" data-title="Discounting">
+        <div class="kicker">05 / DISCOUNT FACTOR</div><h2>금리 경로를 현금흐름의 현재가치로 바꿉니다</h2>
+        <div class="discount-grid"><div class="discount-chart"><div class="chart-bar b1"></div><div class="chart-bar b2"></div><div class="chart-bar b3"></div><div class="chart-bar b4"></div><div class="chart-bar b5"></div><div class="chart-axis">0Y&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;5Y&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;10Y&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;30Y</div></div><div class="discount-copy"><div class="formula">DF(0,T)<br>= ∏<sub>i</sub> exp(−I<sub>r,i</sub>)</div><p>각 구간의 할인계수를 누적 곱하면 경로별 만기 할인계수가 됩니다.</p><div class="pill-row"><span>discount_factors</span><span>short_rate</span><span>integrated_short_rate</span></div></div></div>
+        <div class="callout">핵심: 적분된 단기금리를 직접 사용하므로 시간구간 안의 금리 움직임도 할인에 반영됩니다.</div>
+      </section>
+
+      <section class="slide" data-title="Output">
+        <div class="kicker">06 / OUTPUT & VALIDATION</div><h2>가격모형이 바로 읽을 수 있는 <b>simulation dictionary</b></h2>
+        <div class="output-layout"><div class="output-tree"><div class="tree-root">simulation</div><div class="tree-row"><span>times</span><span>x / y</span><span>short_rate</span></div><div class="tree-row"><span>phi</span><span>discount_factors</span><span>curve / model</span></div></div><div class="validation"><div class="check">✓</div><h3>Market curve vs MC curve</h3><p>경로별 DF의 평균으로 Monte Carlo zero curve를 만들고 시장 zero curve와 비교합니다.</p><code>print_zero_rate_comparison()</code></div></div>
+        <div class="final-line"><span>CALLABLE BOND</span><b>simulation → cash flow → exercise decision → price</b></div>
+      </section>
+    </div>
+    <nav class="controls"><button id="prev" aria-label="이전 슬라이드">←</button><div class="progress"><span id="progress-fill"></span></div><span id="counter">01 / 07</span><button id="next" aria-label="다음 슬라이드">→</button><a href="/" title="평가 화면으로 이동">↗ 평가 화면</a></nav>
+  </main>
+  <script>
+    const slides = [...document.querySelectorAll('.slide')];
+    const fill = document.querySelector('#progress-fill');
+    const counter = document.querySelector('#counter');
+    let current = 0;
+    function show(index) { current = (index + slides.length) % slides.length; slides.forEach((slide, i) => slide.classList.toggle('active', i === current)); fill.style.width = `${((current + 1) / slides.length) * 100}%`; counter.textContent = `${String(current + 1).padStart(2, '0')} / ${String(slides.length).padStart(2, '0')}`; }
+    document.querySelector('#prev').addEventListener('click', () => show(current - 1));
+    document.querySelector('#next').addEventListener('click', () => show(current + 1));
+    document.addEventListener('keydown', event => { if (['ArrowRight', ' ', 'PageDown'].includes(event.key)) show(current + 1); if (['ArrowLeft', 'PageUp'].includes(event.key)) show(current - 1); });
+    show(0);
+  </script>
+</body>
+</html>

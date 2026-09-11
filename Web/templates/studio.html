@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plotdeck / PPTX Studio</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='studio.css') }}">
+</head>
+<body>
+  <main class="workspace">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="홈으로 이동"><span class="brand-mark">P</span><span>plotdeck</span></a>
+      <div class="document-name"><span class="live-dot"></span><span id="file-name">Untitled deck</span><span class="saved">Saved locally</span></div>
+      <div class="top-actions"><button class="icon-button" title="실행 취소" aria-label="실행 취소">↶</button><button class="icon-button" title="다시 실행" aria-label="다시 실행">↷</button><button class="export-button" id="export-button">Export <span>↗</span></button></div>
+    </header>
+
+    <section class="studio-grid">
+      <aside class="sidebar left-sidebar">
+        <div class="section-label">SOURCE PRESENTATION <span>01</span></div>
+        <label class="dropzone" for="pptx-file" id="dropzone">
+          <input id="pptx-file" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation">
+          <span class="upload-icon">↑</span><strong>Drop a PPTX here</strong><small>or click to browse</small><em>MAX 25 MB</em>
+        </label>
+        <div class="file-card" id="file-card" hidden><span class="file-icon">P</span><div><strong id="file-card-name">deck.pptx</strong><small id="file-card-meta">Ready to style</small></div><button id="remove-file" aria-label="파일 제거">×</button></div>
+        <div class="section-label slide-label">SLIDES <span id="slide-count">03</span></div>
+        <div class="thumbnails" id="thumbnails">
+          <button class="thumbnail active" data-slide="0"><span>01</span><div class="mini-slide"><i></i><b></b><u></u></div></button>
+          <button class="thumbnail" data-slide="1"><span>02</span><div class="mini-slide mini-chart"><i></i><b></b><u></u></div></button>
+          <button class="thumbnail" data-slide="2"><span>03</span><div class="mini-slide mini-bars"><i></i><b></b><u></u></div></button>
+        </div>
+        <button class="add-slide" id="add-slide">+ Add slide</button>
+        <div class="sidebar-footer"><a href="/">← Home</a><span>v0.1 prototype</span></div>
+      </aside>
+
+      <section class="canvas-area">
+        <div class="canvas-toolbar"><div class="mode-tabs"><button class="active">Design</button><button>Preview</button></div><div class="zoom-control"><button aria-label="축소">−</button><span>82%</span><button aria-label="확대">+</button></div></div>
+        <div class="stage"><div class="artboard" id="artboard"><div class="artboard-kicker">FIG 01 · STORY OVERVIEW</div><h1 id="artboard-title">Every idea deserves<br><em>a clear shape.</em></h1><p class="artboard-copy">A visual language for your presentation,<br>with less noise and more signal.</p><div class="chart"><div class="gridline g1"></div><div class="gridline g2"></div><div class="gridline g3"></div><div class="axis-label y1">100</div><div class="axis-label y2">50</div><div class="axis-label y3">0</div><div class="axis-label x1">A</div><div class="axis-label x2">B</div><div class="axis-label x3">C</div><svg viewBox="0 0 560 180" role="img" aria-label="데이터 흐름을 보여주는 선 그래프"><path class="area" d="M0 138 C55 130, 75 112, 125 120 S180 78, 220 98 S278 35, 330 67 S385 48, 430 73 S500 22, 560 42 L560 180 L0 180 Z"></path><path class="line" d="M0 138 C55 130, 75 112, 125 120 S180 78, 220 98 S278 35, 330 67 S385 48, 430 73 S500 22, 560 42"></path><circle cx="560" cy="42" r="5"></circle></svg></div><div class="chart-caption"><span><i class="legend-dot"></i> Your key signal</span><span>Source: presentation data</span></div><div class="page-number">01 <span>/ 03</span></div></div></div>
+        <div class="canvas-hint"><span>⌘</span> + <span>↵</span> to present <span class="hint-right">Drag elements to reposition</span></div>
+      </section>
+
+      <aside class="sidebar right-sidebar">
+        <div class="inspector-heading"><span>INSPECTOR</span><button aria-label="설정">⚙</button></div>
+        <div class="inspector-section"><div class="section-title">Canvas</div><div class="field-row"><label>Width<input value="1280" type="number"></label><label>Height<input value="720" type="number"></label></div><div class="field-row"><label>Background<div class="color-input"><i></i><span>#F6F3ED</span></div></label></div></div>
+        <div class="inspector-section"><div class="section-title">Typography</div><label class="full-field">Headline<input id="headline-input" value="Rates are telling a quieter story."></label><div class="field-row"><label>Typeface<select><option>IBM Plex Serif</option><option>Georgia</option></select></label><label>Size<input value="54" type="number"></label></div><div class="weight-row"><button class="active">Regular</button><button>Medium</button><button>Bold</button></div></div>
+        <div class="inspector-section"><div class="section-title">Plot style <span class="info">i</span></div><div class="swatch-row"><button class="swatch active" style="--swatch:#E76F51" aria-label="Coral"></button><button class="swatch" style="--swatch:#2A9D8F" aria-label="Teal"></button><button class="swatch" style="--swatch:#264653" aria-label="Ink"></button><button class="swatch" style="--swatch:#E9C46A" aria-label="Yellow"></button><button class="swatch" style="--swatch:#F4A261" aria-label="Apricot"></button><button class="add-swatch" aria-label="색상 추가">+</button></div><div class="toggle-row"><span>Gridlines</span><button class="toggle on" aria-label="그리드라인 켜기"><i></i></button></div><div class="toggle-row"><span>Direct labels</span><button class="toggle" aria-label="직접 라벨 끄기"><i></i></button></div></div>
+        <div class="inspector-section layers"><div class="section-title">Layers <span>4</span></div><div class="layer active"><span>◉</span><strong>Key signal</strong><small>Line + area</small><b>⠿</b></div><div class="layer"><span>H</span><strong>Headline</strong><small>IBM Plex Serif</small><b>⠿</b></div><div class="layer"><span>¶</span><strong>Supporting copy</strong><small>IBM Plex Sans</small><b>⠿</b></div></div>
+      </aside>
+    </section>
+  </main>
+  <div class="toast" id="toast" role="status"></div>
+  <script>
+    const fileInput = document.querySelector('#pptx-file');
+    const dropzone = document.querySelector('#dropzone');
+    const fileCard = document.querySelector('#file-card');
+    const fileName = document.querySelector('#file-name');
+    const cardName = document.querySelector('#file-card-name');
+    const cardMeta = document.querySelector('#file-card-meta');
+    const toast = document.querySelector('#toast');
+    const title = document.querySelector('#artboard-title');
+    const headlineInput = document.querySelector('#headline-input');
+    const thumbnails = document.querySelector('#thumbnails');
+    let slideTotal = 3;
+
+    function notify(message) { toast.textContent = message; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2600); }
+    function showFile(file) {
+      if (!file) return;
+      fileName.textContent = file.name; cardName.textContent = file.name; cardMeta.textContent = 'Inspecting slides...'; fileCard.hidden = false;
+      const data = new FormData(); data.append('file', file);
+      fetch('/api/pptx/inspect', { method: 'POST', body: data }).then(response => response.json()).then(payload => {
+        if (!payload.ok) throw new Error(payload.error);
+        slideTotal = payload.deck.slide_count || 1; document.querySelector('#slide-count').textContent = String(slideTotal).padStart(2, '0'); cardMeta.textContent = `${slideTotal} slides ready to style`; renderSlides(payload.deck.slides); notify(`${slideTotal}개 슬라이드를 불러왔습니다.`);
+      }).catch(error => { cardMeta.textContent = 'Could not read this deck'; notify(error.message); });
+    }
+    fileInput.addEventListener('change', () => showFile(fileInput.files[0]));
+    ['dragenter', 'dragover'].forEach(name => dropzone.addEventListener(name, event => { event.preventDefault(); dropzone.classList.add('dragging'); }));
+    ['dragleave', 'drop'].forEach(name => dropzone.addEventListener(name, event => { event.preventDefault(); dropzone.classList.remove('dragging'); }));
+    dropzone.addEventListener('drop', event => showFile(event.dataTransfer.files[0]));
+    document.querySelector('#remove-file').addEventListener('click', () => { fileInput.value = ''; fileCard.hidden = true; fileName.textContent = 'Untitled deck'; });
+    headlineInput.addEventListener('input', () => { title.textContent = headlineInput.value; });
+    function renderSlides(slides) {
+      thumbnails.innerHTML = slides.map((slide, index) => `<button class="thumbnail${index === 0 ? ' active' : ''}" data-slide="${index}"><span>${String(index + 1).padStart(2, '0')}</span><div class="mini-slide ${index % 3 === 1 ? 'mini-chart' : index % 3 === 2 ? 'mini-bars' : ''}"><i></i><b></b><u></u></div></button>`).join('');
+      thumbnails.querySelectorAll('.thumbnail').forEach(button => button.addEventListener('click', () => {
+        thumbnails.querySelectorAll('.thumbnail').forEach(item => item.classList.remove('active')); button.classList.add('active');
+        const slide = slides[Number(button.dataset.slide)];
+        if (slide) { headlineInput.value = slide.title; title.textContent = slide.title; document.querySelector('.page-number').innerHTML = `${String(slide.number).padStart(2, '0')} <span>/ ${String(slides.length).padStart(2, '0')}</span>`; }
+      }));
+    }
+    document.querySelectorAll('.thumbnail').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('.thumbnail').forEach(item => item.classList.remove('active')); button.classList.add('active'); }));
+    document.querySelector('#add-slide').addEventListener('click', () => { slideTotal += 1; document.querySelector('#slide-count').textContent = String(slideTotal).padStart(2, '0'); notify('새 슬라이드를 추가했습니다.'); });
+    document.querySelector('#export-button').addEventListener('click', () => notify('웹 디자인이 로컬에 저장되었습니다. PPTX export는 다음 단계에서 연결합니다.'));
+  </script>
+</body>
+</html>

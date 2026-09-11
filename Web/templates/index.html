@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Callable Hybrid Bond Valuation</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">QUANTLIB / G2++ MONTE CARLO</p>
+        <h1>Callable Hybrid Bond<br><em>Valuation Desk</em></h1>
+        <p class="lede">상품 조건을 입력하면 기존 시장 커브, 스왑션 변동성, 시뮬레이션 캐시를 사용해 평가합니다.</p>
+      </div>
+      <div class="status"><span></span> LOCAL ENGINE READY</div>
+    </header>
+
+    <p><a href="{{ url_for('studio') }}">PPTX를 ggplot2 스타일로 디자인하기 →</a> <a href="{{ url_for('callableswap_slides') }}">CallableSwap.py 코드 설명 보기 →</a></p>
+
+    <form id="valuation-form">
+      <section class="panel">
+        <div class="panel-heading"><span>01</span><h2>계약 조건</h2><p>기본 상품 및 일정</p></div>
+        <div class="fields">
+          <label>상품명<input name="bond_name" value="HybridBond_Web" placeholder="상품명"></label>
+          <label>평가일<input type="date" name="valuation_date" value="2025-01-02" required></label>
+          <label>발행일<input type="date" name="issue_date" value="2024-11-29" required></label>
+          <label>만기일<input type="date" name="maturity" value="2034-11-29" required></label>
+          <label>최초 콜 / 리셋일<input type="date" name="first_call_date" value="2027-08-29" required></label>
+          <label>액면 금액<input type="number" name="notional" value="10000000" min="0" step="any" required></label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading"><span>02</span><h2>쿠폰 및 콜</h2><p>현금흐름과 조기상환 조건</p></div>
+        <div class="fields">
+          <label>초기 쿠폰율 (%)<input type="number" name="initial_coupon_rate" value="1.00" min="0" step="0.01" required></label>
+          <label>쿠폰 주기<select name="coupon_frequency"><option>3M</option><option>6M</option><option>1Y</option></select></label>
+          <label>콜 주기<select name="call_frequency"><option>3M</option><option>6M</option><option>1Y</option></select></label>
+          <label>콜 가격 (%)<input type="number" name="call_price_pct" value="100" min="0" step="0.01" required></label>
+          <label>리셋 방식<select name="reset_rate_mode" id="reset-rate-mode"><option value="FIXED">고정 금리</option><option value="YTM_PLUS_SPREAD">기준 YTM + 스프레드</option></select></label>
+          <label id="reset-fixed-field">리셋 고정금리 (%)<input type="number" name="reset_fixed_rate" value="2.00" min="0" step="0.01"></label>
+          <label>리셋 스프레드 (bp)<input type="number" name="reset_spread_bp" value="0" min="0" step="0.1"></label>
+          <label>기준 만기<select name="benchmark_tenor"><option>5Y</option><option>3Y</option><option>10Y</option></select></label>
+          <label>기준금리 주기<select name="benchmark_frequency"><option>6M</option><option>3M</option><option>1Y</option></select></label>
+        </div>
+      </section>
+
+      <div class="action-row"><button type="submit" id="submit-button"><span>▶</span> 평가 실행</button><p id="message">평가에는 시뮬레이션 캐시 상태에 따라 시간이 걸릴 수 있습니다.</p></div>
+    </form>
+
+    <section class="result panel" id="result-panel" hidden>
+      <div class="panel-heading"><span>03</span><h2>평가 결과</h2><p>완료</p></div>
+      <div id="result-grid" class="result-grid"></div>
+      <details><summary>전체 결과 데이터</summary><pre id="raw-result"></pre></details>
+    </section>
+  </main>
+  <script>
+    const form = document.querySelector('#valuation-form');
+    const mode = document.querySelector('#reset-rate-mode');
+    const fixedField = document.querySelector('#reset-fixed-field');
+    const message = document.querySelector('#message');
+    const button = document.querySelector('#submit-button');
+    const resultPanel = document.querySelector('#result-panel');
+    const resultGrid = document.querySelector('#result-grid');
+    const rawResult = document.querySelector('#raw-result');
+
+    mode.addEventListener('change', () => { fixedField.hidden = mode.value !== 'FIXED'; });
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(form));
+      data.initial_coupon_rate = Number(data.initial_coupon_rate) / 100;
+      data.reset_fixed_rate = Number(data.reset_fixed_rate) / 100;
+      data.reset_spread = Number(data.reset_spread_bp) / 10000;
+      data.call_price_pct = Number(data.call_price_pct) / 100;
+      delete data.reset_spread_bp;
+      button.disabled = true;
+      message.textContent = '시장 데이터와 G2++ 시뮬레이션을 준비하는 중입니다...';
+      resultPanel.hidden = true;
+      try {
+        const response = await fetch('/api/price', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        const payload = await response.json();
+        if (!payload.ok) throw new Error(payload.error || '평가에 실패했습니다.');
+        const result = payload.result;
+        const labels = {'Callable Bond Price': 'Callable Bond Price', 'Callable Option Value': 'Callable Option Value', 'Standard Error': 'Standard Error', '95% CI Lower': '95% CI Lower', '95% CI Upper': '95% CI Upper', 'Total Call Exercise %': 'Total Call Exercise %'};
+        resultGrid.innerHTML = Object.entries(labels).filter(([key]) => result[key] !== undefined).map(([key, label]) => `<div class="metric"><small>${label}</small><strong>${formatValue(result[key], key)}</strong></div>`).join('');
+        rawResult.textContent = JSON.stringify(result, null, 2);
+        resultPanel.hidden = false;
+        message.textContent = '평가가 완료되었습니다.';
+      } catch (error) { message.textContent = error.message; }
+      finally { button.disabled = false; }
+    });
+    function formatValue(value, key) {
+      if (value === null || value === undefined) return '-';
+      return Number(value).toLocaleString('ko-KR', {maximumFractionDigits: 6});
+    }
+  </script>
+</body>
+</html>

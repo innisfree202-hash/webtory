@@ -1,0 +1,16 @@
+﻿Parameter,Value,Initial Value,Source
+a,6.338972312700327e-07,0.1,SwaptionVolCalib.py
+sigma,0.0027457980922038472,0.01,SwaptionVolCalib.py
+b,0.11583506081408064,0.3,SwaptionVolCalib.py
+eta,0.0032153225251314757,0.015,SwaptionVolCalib.py
+rho,-0.21235456111029138,-0.7,SwaptionVolCalib.py
+Engine,TREE,TREE,SwaptionVolCalib.py
+Tree Steps,25,25,SwaptionVolCalib.py
+Price MAE,0.0003936938772332954,,SwaptionVolCalib.py
+Price RMSE,0.0006487721334141732,,SwaptionVolCalib.py
+Relative Price MAE,0.039307604003379085,,SwaptionVolCalib.py
+Relative Price RMSE,0.0509620123168553,,SwaptionVolCalib.py
+Number of Helpers,30,,SwaptionVolCalib.py
+Missing Quotes,0,,SwaptionVolCalib.py
+Fixed Leg Tenor,3M,3M,SwaptionVolCalib.py
+Floating Index Tenor,3M,3M,SwaptionVolCalib.py
