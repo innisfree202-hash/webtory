@@ -1,0 +1,7 @@
+.env
+.streamlit/secrets.toml
+__pycache__/
+.venv/
+venv/
+*.pyc
+Input/holdings.json

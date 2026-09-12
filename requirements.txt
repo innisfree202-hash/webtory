@@ -1,0 +1,6 @@
+FinanceDataReader
+pandas
+plotly
+requests
+streamlit
+websocket-client
