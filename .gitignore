@@ -5,3 +5,4 @@ __pycache__/
 venv/
 *.pyc
 Input/holdings.json
+Input/auto_trade_log.csv
