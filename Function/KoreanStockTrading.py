@@ -129,7 +129,7 @@ class KISOrderClient:
         qty: int,
         price: int = 0,
         side: str = "buy",
-        ord_dvsn: str = "01",
+        ord_dvsn: str = "02",
         dry_run: bool = True,
     ) -> dict[str, Any]:
         """현금 주문. side=buy/sell. ord_dvsn=01 지정가, 02 시장가(가격 0).
