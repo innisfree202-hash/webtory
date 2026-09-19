@@ -1,0 +1,9 @@
+{
+    "python.analysis.extraPaths": [
+        "C:\\Python\\1.Quantlib\\Function"
+    ],
+    "python.envFile": "${workspaceFolder}/.env",
+    "chat.tools.terminal.autoApprove": {
+        ".\\.venv\\Scripts\\python.exe": true
+    }
+}
